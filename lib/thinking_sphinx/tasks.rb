@@ -71,7 +71,7 @@ namespace :thinking_sphinx do
     end
         
     FileUtils.mkdir_p config.searchd_file_path
-    cmd = "#{config.bin_path}indexer --config #{config.config_file} --all --quiet"
+    cmd = "#{config.bin_path}indexer --config #{config.config_file} --all"
     cmd << " --quiet" if ENV["QUIET_INDEX"]
     cmd << " --rotate" if sphinx_running?
     
