@@ -62,7 +62,7 @@ namespace :thinking_sphinx do
   
   desc "Index data for Sphinx using Thinking Sphinx's settings"
   task :index => :app_env do
-    ThinkingSphinx::Deltas::Job.cancel_thinking_sphinx_jobs
+    ThinkingSphinx::Deltas::Job.cancel_thinking_sphinx_jobs if ENV["USING_DELAYED_DELTAS"] == "true"
     
     config = ThinkingSphinx::Configuration.instance
     unless ENV["INDEX_ONLY"] == "true"
