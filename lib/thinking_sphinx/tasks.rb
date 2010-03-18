@@ -76,7 +76,7 @@ namespace :thinking_sphinx do
     cmd << " --quiet" if ENV["QUIET_INDEX"]
     cmd << " --rotate" if sphinx_running?
     
-    system! cmd
+    system cmd
   end
   
   desc "Reindex Sphinx without regenerating the configuration file"
