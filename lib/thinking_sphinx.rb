@@ -2,7 +2,9 @@ require 'active_record'
 require 'after_commit'
 require 'yaml'
 require 'cgi'
+require 'riddle'
 
+require 'thinking_sphinx/auto_version'
 require 'thinking_sphinx/core/array'
 require 'thinking_sphinx/core/string'
 require 'thinking_sphinx/property'
@@ -10,6 +12,7 @@ require 'thinking_sphinx/active_record'
 require 'thinking_sphinx/association'
 require 'thinking_sphinx/attribute'
 require 'thinking_sphinx/configuration'
+require 'thinking_sphinx/context'
 require 'thinking_sphinx/excerpter'
 require 'thinking_sphinx/facet'
 require 'thinking_sphinx/class_facet'
@@ -60,19 +63,30 @@ module ThinkingSphinx
   # The collection of indexed models. Keep in mind that Rails lazily loads
   # its classes, so this may not actually be populated with _all_ the models
   # that have Sphinx indexes.
-  def self.indexed_models
-    Thread.current[:thinking_sphinx_indexed_models] ||= []
-  end
+  @@sphinx_mutex = Mutex.new
+  @@context      = nil
   
-  def self.superclass_indexed_models
-    klasses = indexed_models.collect { |name| name.constantize }
-    klasses.reject { |klass|
-      klass.superclass.ancestors.any? { |ancestor| klasses.include?(ancestor) }
-    }.collect { |klass| klass.name }
+  def self.context
+    if @@context.nil?
+      @@sphinx_mutex.synchronize do
+        if @@context.nil?
+          @@context = ThinkingSphinx::Context.new
+          @@context.prepare
+        end
+      end
+    end
+    
+    @@context
+  end
+
+  def self.reset_context!
+    @@sphinx_mutex.synchronize do
+      @@context = nil
+    end
   end
 
   def self.unique_id_expression(offset = nil)
-    "* #{indexed_models.size} + #{offset || 0}"
+    "* #{context.indexed_models.size} + #{offset || 0}"
   end
 
   # Check if index definition is disabled.
@@ -222,3 +236,5 @@ module ThinkingSphinx
   
   extend ThinkingSphinx::SearchMethods::ClassMethods
 end
+
+ThinkingSphinx::AutoVersion.detect

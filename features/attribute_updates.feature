@@ -32,8 +32,20 @@ Feature: Update attributes directly to Sphinx
     Then I should get 1 result
     
     When I change the value of beta eight to 18
+    And I wait for Sphinx to catch up
     And I filter by 18 on value
     Then I should get 1 result
     
     When I search for the document id of beta eight in the beta_delta index
     Then it should not exist
+
+  Scenario: Updating boolean attribute in Sphinx
+    Given Sphinx is running
+    And I am searching on alphas
+    When I filter by active alphas
+    Then I should get 10 results
+    
+    When I flag alpha five as inactive
+    And I wait for Sphinx to catch up
+    And I filter by active alphas
+    Then I should get 9 results

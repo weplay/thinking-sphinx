@@ -57,15 +57,35 @@ module ThinkingSphinx
       ThinkingSphinx.facets *args
     end
     
+    def self.matching_fields(fields, bitmask)
+      matches   = []
+      bitstring = bitmask.to_s(2).rjust(32, '0').reverse
+      
+      fields.each_with_index do |field, index|
+        matches << field if bitstring[index, 1] == '1'
+      end
+      matches
+    end
+    
     def initialize(*args)
+      ThinkingSphinx.context.define_indexes
+      
       @array    = []
       @options  = args.extract_options!
       @args     = args
+      
+      populate if @options[:populate]
     end
     
     def to_a
       populate
       @array
+    end
+    
+    def freeze
+      populate
+      @array.freeze
+      self
     end
     
     # Indication of whether the request has been made to Sphinx for the search
@@ -90,6 +110,8 @@ module ThinkingSphinx
       if is_scope?(method)
         add_scope(method, *args, &block)
         return self
+      elsif method == :search_count
+        return scoped_count
       elsif method.to_s[/^each_with_.*/].nil? && !@array.respond_to?(method)
         super
       elsif !SafeMethods.include?(method.to_s)
@@ -109,8 +131,8 @@ module ThinkingSphinx
     # @param [Symbol] method The method name
     # @return [Boolean] true if either Search or Array responds to the method.
     # 
-    def respond_to?(method)
-      super || @array.respond_to?(method)
+    def respond_to?(method, include_private = false)
+      super || @array.respond_to?(method, include_private)
     end
     
     # The current page number of the result set. Defaults to 1 if no page was
@@ -146,7 +168,9 @@ module ThinkingSphinx
     # @return [Integer]
     # 
     def per_page
-      @options[:limit] || @options[:per_page] || 20
+      @options[:limit] ||= @options[:per_page]
+      @options[:limit] ||= 20
+      @options[:limit].to_i
     end
     
     # The total number of pages available if the results are paginated.
@@ -174,11 +198,12 @@ module ThinkingSphinx
     end
     
     # The current page's offset, based on the number of records per page.
+    # Or explicit :offset if given. 
     # 
     # @return [Integer]
     # 
     def offset
-      (current_page - 1) * per_page
+      @options[:offset] || ((current_page - 1) * per_page)
     end
     
     def indexes
@@ -255,6 +280,7 @@ module ThinkingSphinx
           replace instances_from_matches
           add_excerpter
           add_sphinx_attributes
+          add_matching_fields if client.rank_mode == :fieldmask
         end
       end
     end
@@ -276,17 +302,37 @@ module ThinkingSphinx
       each do |object|
         next if object.nil? || object.respond_to?(:sphinx_attributes)
         
-        match = @results[:matches].detect { |match|
-          match[:attributes]['sphinx_internal_id'] == object.
-            primary_key_for_sphinx &&
-          match[:attributes]['class_crc'] == object.class.to_crc32
-        }
+        match = match_hash object
         next if match.nil?
         
         object.metaclass.instance_eval do
           define_method(:sphinx_attributes) { match[:attributes] }
         end
       end
+    end
+    
+    def add_matching_fields
+      each do |object|
+        next if object.nil? || object.respond_to?(:matching_fields)
+        
+        match = match_hash object
+        next if match.nil?
+        fields = ThinkingSphinx::Search.matching_fields(
+          @results[:fields], match[:weight]
+        )
+        
+        object.metaclass.instance_eval do
+          define_method(:matching_fields) { fields }
+        end
+      end
+    end
+    
+    def match_hash(object)
+      @results[:matches].detect { |match|
+        match[:attributes]['sphinx_internal_id'] == object.
+          primary_key_for_sphinx &&
+        match[:attributes]['class_crc'] == object.class.to_crc32
+      }
     end
     
     def self.log(message, method = :debug, identifier = 'Sphinx')
@@ -312,9 +358,7 @@ module ThinkingSphinx
         :group_distinct, :id_range, :cut_off, :retry_count, :retry_delay,
         :rank_mode, :max_query_time, :field_weights
       ].each do |key|
-        # puts "key: #{key}"
         value = options[key] || index_options[key]
-        # puts "value: #{value.inspect}"
         client.send("#{key}=", value) if value
       end
 
@@ -723,6 +767,17 @@ MSG
           options[key] = search.options[key]
         end
       end
+    end
+    
+    def scoped_count
+      return self.total_entries if @options[:ids_only]
+      
+      @options[:ids_only] = true
+      results_count = self.total_entries
+      @options[:ids_only] = false
+      @populated = false
+      
+      results_count
     end
   end
 end

@@ -43,7 +43,12 @@ describe ThinkingSphinx::Search do
     
     it "should be true once the client request has been made" do
       @search.first
-      @search.populated?.should be_true
+      @search.should be_populated
+    end
+    
+    it "should be populated if :populate is set to true" do
+      search = ThinkingSphinx::Search.new(:populate => true)
+      search.should be_populated
     end
   end
   
@@ -153,6 +158,17 @@ describe ThinkingSphinx::Search do
     end
   end
   
+  describe '.matching_fields' do
+    it "should return objects with indexes matching 1's in the bitmask" do
+      fields = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta']
+      ThinkingSphinx::Search.matching_fields(fields, 85).
+        should == ['alpha', 'gamma', 'epsilon', 'eta']
+      
+      ThinkingSphinx::Search.matching_fields(fields, 42).
+        should == ['beta', 'delta', 'zeta']
+    end
+  end
+  
   describe '#populate' do
     before :each do
       @alpha_a, @alpha_b  = Alpha.new,  Alpha.new
@@ -164,7 +180,8 @@ describe ThinkingSphinx::Search do
       @beta_b.stub!  :id => 2, :read_attribute => 2
       
       @client.stub! :query => {
-        :matches => minimal_result_hashes(@alpha_a, @beta_b, @alpha_b, @beta_a)
+        :matches => minimal_result_hashes(@alpha_a, @beta_b, @alpha_b, @beta_a),
+        :fields  => ["one", "two", "three", "four", "five"]
       }
       Alpha.stub! :find => [@alpha_a, @alpha_b]
       Beta.stub!  :find => [@beta_a, @beta_b]
@@ -798,6 +815,33 @@ describe ThinkingSphinx::Search do
           hash['class_crc'].should == @search.last.class.to_crc32
         end
       end
+      
+      describe '#matching_fields' do
+        it "should add matching_fields method if using fieldmask ranking mode" do
+          search = ThinkingSphinx::Search.new :rank_mode => :fieldmask
+          search.first.should respond_to(:matching_fields)
+        end
+        
+        it "should not add matching_fields method if using a different ranking mode" do
+          search = ThinkingSphinx::Search.new :rank_mode => :bm25
+          search.first.should_not respond_to(:matching_fields)
+        end
+        
+        it "should not add matching_fields method if object already have one" do
+          search = ThinkingSphinx::Search.new :rank_mode => :fieldmask
+          search.last.matching_fields.should_not be_an(Array)
+        end
+        
+        it "should return an array" do
+          search = ThinkingSphinx::Search.new :rank_mode => :fieldmask
+          search.first.matching_fields.should be_an(Array)
+        end
+        
+        it "should return the fields that the bitmask match" do
+          search = ThinkingSphinx::Search.new :rank_mode => :fieldmask
+          search.first.matching_fields.should == ['one', 'three', 'five']
+        end
+      end
     end
   end
   
@@ -832,6 +876,10 @@ describe ThinkingSphinx::Search do
       ThinkingSphinx::Search.new(
         :per_page => 30, :limit => 40
       ).per_page.should == 40
+    end
+    
+    it "should allow for string arguments" do
+      ThinkingSphinx::Search.new(:per_page => '10').per_page.should == 10
     end
   end
   
@@ -902,6 +950,10 @@ describe ThinkingSphinx::Search do
     
     it "should increase by the per_page value for each page in" do
       ThinkingSphinx::Search.new(:per_page => 25, :page => 2).offset.should == 25
+    end
+
+    it "should prioritise explicit :offset over calculated if given" do
+      ThinkingSphinx::Search.new(:offset => 5).offset.should == 5
     end
   end
   
@@ -1123,6 +1175,26 @@ describe ThinkingSphinx::Search do
       @client.filters.detect { |filter|
         filter.attribute == 'int'
       }.should_not be_nil
+    end
+  end
+  
+  describe '#freeze' do
+    before :each do
+      @search = ThinkingSphinx::Search.new
+    end
+    
+    it "should populate the result set" do
+      @search.freeze
+      @search.should be_populated
+    end
+    
+    it "should freeze the underlying array" do
+      @search.freeze
+      @search.to_a.should be_frozen
+    end
+    
+    it "should return the Search object" do
+      @search.freeze.should be_a(ThinkingSphinx::Search)
     end
   end
 end

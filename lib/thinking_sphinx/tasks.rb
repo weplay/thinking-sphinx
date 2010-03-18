@@ -29,10 +29,8 @@ namespace :thinking_sphinx do
     raise RuntimeError, "searchd is already running." if sphinx_running?
     
     Dir["#{config.searchd_file_path}/*.spl"].each { |file| File.delete(file) }
-
-    system! "#{config.bin_path}#{config.searchd_binary_name} --pidfile --config \"#{config.config_file}\""
     
-    sleep(2)
+    config.controller.start
     
     if sphinx_running?
       puts "Started successfully (pid #{sphinx_pid})."
@@ -48,7 +46,7 @@ namespace :thinking_sphinx do
     else
       config = ThinkingSphinx::Configuration.instance
       pid    = sphinx_pid
-      system! "#{config.bin_path}#{config.searchd_binary_name} --stop --config \"#{config.config_file}\""
+      config.controller.stop
       puts "Stopped search daemon (pid #{pid})."
     end
   end
@@ -79,6 +77,13 @@ namespace :thinking_sphinx do
     system! cmd
   end
   
+  desc "Reindex Sphinx without regenerating the configuration file"
+  task :reindex => :app_env do
+    config = ThinkingSphinx::Configuration.instance
+    FileUtils.mkdir_p config.searchd_file_path
+    puts config.controller.index
+  end
+  
   desc "Stop Sphinx (if it's running), rebuild the indexes, and start Sphinx"
   task :rebuild => :app_env do
     Rake::Task["thinking_sphinx:stop"].invoke if sphinx_running?
@@ -99,6 +104,8 @@ namespace :ts do
   desc "Index data for Sphinx using Thinking Sphinx's settings"
   task :in      => "thinking_sphinx:index"
   task :index   => "thinking_sphinx:index"
+  desc "Reindex Sphinx without regenerating the configuration file"
+  task :reindex => "thinking_sphinx:reindex"
   desc "Restart Sphinx"
   task :restart => "thinking_sphinx:restart"
   desc "Generate the Sphinx configuration file using Thinking Sphinx's settings"
@@ -115,20 +122,4 @@ end
 
 def sphinx_running?
   ThinkingSphinx.sphinx_running?
-end
-
-# a fail-fast, hopefully helpful version of system
-def system!(cmd)
-  unless system(cmd)
-    raise <<-SYSTEM_CALL_FAILED
-The following command failed:
-  #{cmd}
-
-This could be caused by a PATH issue in the environment of cron/passenger/etc. Your current PATH:
-  #{ENV['PATH']}
-You can set the path to your indexer and searchd binaries using the bin_path property in config/sphinx.yml:
-  production:
-    bin_path: '/usr/local/bin'
-SYSTEM_CALL_FAILED
-  end
 end
