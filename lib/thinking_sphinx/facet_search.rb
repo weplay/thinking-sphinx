@@ -130,7 +130,7 @@ module ThinkingSphinx
     end
     
     def facet_from_object(object, name)
-      object.sphinx_facets.detect { |facet| facet.attribute_name == name }
+      object.class.base_class.sphinx_facets.detect { |facet| facet.attribute_name == name }
     end
   end
 end
