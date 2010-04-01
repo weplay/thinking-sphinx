@@ -54,7 +54,7 @@ class ThinkingSphinx::Context
         }
       
         begin
-          model_name.camelize.constantize
+          ActiveSupport::Dependencies.load_missing_constant Kernel, model_name.camelize
         rescue LoadError
           model_name.gsub!(/.*[\/\\]/, '').nil? ? next : retry
         rescue NameError
