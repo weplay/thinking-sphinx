@@ -58,7 +58,7 @@ class ThinkingSphinx::Context
         rescue LoadError
           model_name.gsub!(/.*[\/\\]/, '').nil? ? next : retry
         rescue NameError
-          next
+          model_name.gsub!(/.*[\/\\]/, '').nil? ? next : retry
         rescue StandardError
           STDERR.puts "Warning: Error loading #{file}"
         end
