@@ -55,9 +55,7 @@ class ThinkingSphinx::Context
       
         begin
           ActiveSupport::Dependencies.load_missing_constant Kernel, model_name.camelize
-        rescue LoadError
-          model_name.gsub!(/.*[\/\\]/, '').nil? ? next : retry
-        rescue NameError
+        rescue LoadError, NameError
           model_name.gsub!(/.*[\/\\]/, '').nil? ? next : retry
         rescue StandardError
           STDERR.puts "Warning: Error loading #{file}"
