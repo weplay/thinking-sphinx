@@ -22,6 +22,9 @@ Gem::Specification.new do |s|
      "lib/cucumber/thinking_sphinx/external_world.rb",
      "lib/cucumber/thinking_sphinx/internal_world.rb",
      "lib/cucumber/thinking_sphinx/sql_logger.rb",
+     "lib/tasks/distribution.rb",
+     "lib/tasks/rails.rake",
+     "lib/tasks/testing.rb",
      "lib/thinking_sphinx.rb",
      "lib/thinking_sphinx/active_record.rb",
      "lib/thinking_sphinx/active_record/attribute_updates.rb",
@@ -59,9 +62,6 @@ Gem::Specification.new do |s|
      "lib/thinking_sphinx/tasks.rb",
      "lib/thinking_sphinx/test.rb",
      "rails/init.rb",
-     "tasks/distribution.rb",
-     "tasks/rails.rake",
-     "tasks/testing.rb"
   ]
   s.homepage = %q{http://ts.freelancing-gods.com}
   s.post_install_message = %q{If you're upgrading, you should read this:
@@ -105,7 +105,6 @@ http://freelancing-god.github.com/ts/en/upgrading.html
      "features/sti_searching.feature",
      "features/support",
      "features/support/database.example.yml",
-     "features/support/database.yml",
      "features/support/db",
      "features/support/db/fixtures",
      "features/support/db/fixtures/alphas.rb",
