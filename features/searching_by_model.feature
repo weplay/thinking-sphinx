@@ -63,7 +63,7 @@ Feature: Searching on a single model
   Scenario: Filtering on timestamp MVAs
     Given Sphinx is running
     And I am searching on posts
-    When I filter by 978307200 on comments_created_at
+    When I filter by 2001-01-01 on comments_created_at
     Then I should get 1 result
   
   Scenario: Searching by NULL/0 values in MVAs
@@ -96,13 +96,6 @@ Feature: Searching on a single model
     When I order by value
     Then I should get 10 results
     And the value of each result should indicate order
-  
-  Scenario: Searching with ordering on a sortable field
-    Given Sphinx is running
-    And I am searching on people
-    And I order by first_name
-    Then I should get 20 results
-    And the first_name of each result should indicate order
   
   Scenario: Intepreting Sphinx Internal Identifiers
     Given Sphinx is running

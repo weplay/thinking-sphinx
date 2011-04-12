@@ -5,18 +5,16 @@ end
 
 require 'rubygems'
 require 'fileutils'
-require 'ginger'
-require 'jeweler'
+require 'bundler'
+ 
+Bundler.require :default, :development
 
-require "lib/thinking_sphinx"
-
-require 'will_paginate'
-
-require 'spec/sphinx_helper'
+require "#{File.dirname(__FILE__)}/../lib/thinking_sphinx"
+require "#{File.dirname(__FILE__)}/sphinx_helper"
 
 ActiveRecord::Base.logger = Logger.new(StringIO.new)
 
-Spec::Runner.configure do |config|
+RSpec.configure do |config|
   %w( tmp tmp/config tmp/log tmp/db ).each do |path|
     FileUtils.mkdir_p "#{Dir.pwd}/#{path}"
   end
@@ -26,7 +24,7 @@ Spec::Runner.configure do |config|
   sphinx = SphinxHelper.new
   sphinx.setup_mysql
   
-  require 'spec/fixtures/models'
+  require "#{File.dirname(__FILE__)}/fixtures/models"
   ThinkingSphinx.context.define_indexes
   
   config.before :all do

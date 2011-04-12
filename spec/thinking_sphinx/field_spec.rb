@@ -1,4 +1,4 @@
-require 'spec/spec_helper'
+require 'spec_helper'
 
 describe ThinkingSphinx::Field do
   before :each do
@@ -42,6 +42,17 @@ describe ThinkingSphinx::Field do
     
     it "should use the column name if there's no alias and just one column" do
       @field.unique_name.should == "col_name"
+    end
+  end
+  
+  describe '#to_select_sql' do
+    it "should return nil if polymorphic association data does not exist" do
+      field = ThinkingSphinx::Field.new(@source,
+        [ThinkingSphinx::Index::FauxColumn.new(:source, :name)],
+        :as => :source_name
+      )
+      
+      field.to_select_sql.should be_nil
     end
   end
 

@@ -1,10 +1,16 @@
 require 'fileutils'
+require 'timeout'
 
 namespace :thinking_sphinx do
   task :app_env do
     if defined?(RAILS_ROOT)
       Rake::Task[:environment].invoke
-      Rails.configuration.cache_classes = false
+      
+      if defined?(Rails.configuration)
+        Rails.configuration.cache_classes = false
+      else
+        Rails::Initializer.run { |config| config.cache_classes = false }
+      end
     end
     
     Rake::Task[:merb_env].invoke    if defined?(Merb)
@@ -47,6 +53,12 @@ namespace :thinking_sphinx do
       config = ThinkingSphinx::Configuration.instance
       pid    = sphinx_pid
       config.controller.stop
+      
+      # Ensure searchd is stopped, but don't try too hard
+      Timeout.timeout(5) do
+        sleep(1) until config.controller.stop
+      end
+      
       puts "Stopped search daemon (pid #{pid})."
     end
   end
@@ -63,8 +75,6 @@ namespace :thinking_sphinx do
   
   desc "Index data for Sphinx using Thinking Sphinx's settings"
   task :index => :app_env do
-    ThinkingSphinx::Deltas::Job.cancel_thinking_sphinx_jobs if ENV["USING_DELAYED_DELTAS"] == "true"
-    
     config = ThinkingSphinx::Configuration.instance
     unless ENV["INDEX_ONLY"] == "true"
       puts "Generating Configuration to #{config.config_file}"
@@ -72,11 +82,7 @@ namespace :thinking_sphinx do
     end
     
     FileUtils.mkdir_p config.searchd_file_path
-    cmd = "#{config.bin_path}#{config.indexer_binary_name} --config \"#{config.config_file}\" --all"
-    cmd << " --quiet" if ENV["QUIET_INDEX"]
-    cmd << " --rotate" if sphinx_running?
-    
-    system cmd
+    config.controller.index :verbose => true
   end
   
   desc "Reindex Sphinx without regenerating the configuration file"

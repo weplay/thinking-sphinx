@@ -1,7 +1,7 @@
+require 'thread'
 require 'active_record'
 require 'after_commit'
 require 'yaml'
-require 'cgi'
 require 'riddle'
 
 require 'thinking_sphinx/auto_version'
@@ -11,6 +11,7 @@ require 'thinking_sphinx/property'
 require 'thinking_sphinx/active_record'
 require 'thinking_sphinx/association'
 require 'thinking_sphinx/attribute'
+require 'thinking_sphinx/bundled_search'
 require 'thinking_sphinx/configuration'
 require 'thinking_sphinx/context'
 require 'thinking_sphinx/excerpter'
@@ -19,6 +20,7 @@ require 'thinking_sphinx/class_facet'
 require 'thinking_sphinx/facet_search'
 require 'thinking_sphinx/field'
 require 'thinking_sphinx/index'
+require 'thinking_sphinx/join'
 require 'thinking_sphinx/source'
 require 'thinking_sphinx/rails_additions'
 require 'thinking_sphinx/search'
@@ -36,6 +38,8 @@ Merb::Plugins.add_rakefiles(
 ) if defined?(Merb)
 
 module ThinkingSphinx
+  mattr_accessor :database_adapter
+  
   # A ConnectionError will get thrown when a connection to Sphinx can't be
   # made.
   class ConnectionError < StandardError
@@ -47,6 +51,16 @@ module ThinkingSphinx
     attr_accessor :ids
     def initialize(ids)
       self.ids = ids
+    end
+  end
+  
+  # A SphinxError occurs when Sphinx responds with an error due to problematic
+  # queries or indexes.
+  class SphinxError < RuntimeError
+    attr_accessor :results
+    def initialize(message = nil, results = nil)
+      super(message)
+      self.results = results
     end
   end
   
@@ -78,7 +92,7 @@ module ThinkingSphinx
     
     @@context
   end
-
+  
   def self.reset_context!
     @@sphinx_mutex.synchronize do
       @@context = nil
@@ -215,6 +229,8 @@ module ThinkingSphinx
 
   def self.pid_active?(pid)
     !!Process.kill(0, pid.to_i)
+  rescue Errno::EPERM => e
+    true
   rescue Exception => e
     false
   end

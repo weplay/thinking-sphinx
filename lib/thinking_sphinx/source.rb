@@ -6,7 +6,7 @@ module ThinkingSphinx
     include ThinkingSphinx::Source::InternalProperties
     include ThinkingSphinx::Source::SQL
     
-    attr_accessor :model, :fields, :attributes, :conditions, :groupings,
+    attr_accessor :model, :fields, :attributes, :joins, :conditions, :groupings,
       :options
     attr_reader :base, :index, :database_configuration
     
@@ -15,6 +15,7 @@ module ThinkingSphinx
       @model        = index.model
       @fields       = []
       @attributes   = []
+      @joins        = []
       @conditions   = []
       @groupings    = []
       @options      = options
@@ -81,6 +82,10 @@ module ThinkingSphinx
       @adapter ||= @model.sphinx_database_adapter
     end
     
+    def available_attributes
+      attributes.select { |attrib| attrib.available? }
+    end
+    
     def set_source_database_settings(source)
       config = @database_configuration
       
@@ -93,7 +98,7 @@ module ThinkingSphinx
     end
     
     def set_source_attributes(source, offset, delta = false)
-      attributes.each do |attrib|
+      available_attributes.each do |attrib|
         source.send(attrib.type_to_config) << attrib.config_value(offset, delta)
       end
     end
@@ -110,6 +115,7 @@ module ThinkingSphinx
       end
       
       source.sql_query_pre += [adapter.utf8_query_pre].compact if utf8?
+      source.sql_query_pre << adapter.utc_query_pre
     end
     
     def set_source_settings(source)
@@ -139,7 +145,11 @@ module ThinkingSphinx
         # attribute associations
         @attributes.collect { |attrib|
           attrib.associations.values if attrib.include_as_association?
-        }.compact.flatten
+        }.compact.flatten +
+        # explicit joins
+        @joins.collect { |join|
+          join.associations
+        }.flatten
       ).uniq.collect { |assoc|
         # get ancestors as well as column-level associations
         assoc.ancestors

@@ -1,6 +1,7 @@
 require 'thinking_sphinx/active_record/attribute_updates'
 require 'thinking_sphinx/active_record/delta'
 require 'thinking_sphinx/active_record/has_many_association'
+require 'thinking_sphinx/active_record/has_many_association_with_scopes'
 require 'thinking_sphinx/active_record/scopes'
 
 module ThinkingSphinx
@@ -23,7 +24,18 @@ module ThinkingSphinx
           end
           
           def primary_key_for_sphinx
-            @sphinx_primary_key_attribute || primary_key
+            if custom_primary_key_for_sphinx?
+              @sphinx_primary_key_attribute || superclass.primary_key_for_sphinx
+            else
+              primary_key
+            end
+          end
+          
+          def custom_primary_key_for_sphinx?
+            (
+              superclass.respond_to?(:custom_primary_key_for_sphinx?) &&
+              superclass.custom_primary_key_for_sphinx?
+            ) || !@sphinx_primary_key_attribute.nil?
           end
           
           def sphinx_index_options
@@ -45,8 +57,7 @@ module ThinkingSphinx
           end
           
           def sphinx_database_adapter
-            @sphinx_database_adapter ||=
-              ThinkingSphinx::AbstractAdapter.detect(self)
+            ThinkingSphinx::AbstractAdapter.detect(self)
           end
           
           def sphinx_name
@@ -154,9 +165,7 @@ module ThinkingSphinx
         end
         
         self.sphinx_index_blocks << lambda {
-          index = ThinkingSphinx::Index::Builder.generate self, name, &block
-          add_sphinx_callbacks_and_extend(index.delta?)
-          add_sphinx_index index
+          add_sphinx_index name, &block
         }
         
         include ThinkingSphinx::ActiveRecord::Scopes
@@ -188,9 +197,18 @@ module ThinkingSphinx
         end
       end
       
-      def add_sphinx_index(index)
+      def add_sphinx_index(name, &block)
+        index = ThinkingSphinx::Index::Builder.generate self, name, &block
+
+        unless sphinx_indexes.any? { |i| i.name == index.name }
+          add_sphinx_callbacks_and_extend(index.delta?)
+          insert_sphinx_index index
+        end
+      end
+      
+      def insert_sphinx_index(index)
         self.sphinx_indexes << index
-        subclasses.each { |klass| klass.add_sphinx_index(index) }
+        subclasses.each { |klass| klass.insert_sphinx_index(index) }
       end
       
       def has_sphinx_indexes?
@@ -251,6 +269,8 @@ module ThinkingSphinx
         ThinkingSphinx::Configuration.instance.client.update(
           index, ['sphinx_deleted'], {document_id => [1]}
         )
+      rescue Riddle::ConnectionError, ThinkingSphinx::SphinxError
+        # Not the end of the world if Sphinx isn't running.
       end
       
       def sphinx_offset
@@ -315,22 +335,16 @@ module ThinkingSphinx
       end
     end
     
-    def in_index?(suffix)
-      self.class.search_for_id self.sphinx_document_id, sphinx_index_name(suffix)
-    end
+    attr_accessor :excerpts
+    attr_accessor :sphinx_attributes
+    attr_accessor :matching_fields
     
-    def in_core_index?
-      in_index? "core"
+    def in_index?(index)
+      self.class.search_for_id self.sphinx_document_id, index
+    rescue Riddle::ResponseError
+      true
     end
-    
-    def in_delta_index?
-      in_index? "delta"
-    end
-    
-    def in_both_indexes?
-      in_core_index? && in_delta_index?
-    end
-    
+        
     def toggle_deleted
       return unless ThinkingSphinx.updates_enabled?
       
@@ -352,7 +366,7 @@ module ThinkingSphinx
     # @return [Integer] Unique record id for the purposes of Sphinx.
     # 
     def primary_key_for_sphinx
-      @primary_key_for_sphinx ||= read_attribute(self.class.primary_key_for_sphinx)
+      read_attribute(self.class.primary_key_for_sphinx)
     end
     
     def sphinx_document_id

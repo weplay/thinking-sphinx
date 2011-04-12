@@ -1,4 +1,4 @@
-require 'spec/spec_helper'
+require 'spec_helper'
 
 describe "ThinkingSphinx::ActiveRecord::Delta" do
   it "should call the toggle_delta method after a save" do
@@ -70,7 +70,7 @@ describe "ThinkingSphinx::ActiveRecord::Delta" do
       ThinkingSphinx.deltas_enabled   = true
       ThinkingSphinx.updates_enabled  = true
       ThinkingSphinx.stub!(:sphinx_running? => true)
-      Person.delta_object.stub!(:` => "", :toggled => true)
+      Person.delta_objects.first.stub!(:` => "", :toggled => true)
       
       @person = Person.new
       Person.stub!(:search_for_id => false)
@@ -106,7 +106,7 @@ describe "ThinkingSphinx::ActiveRecord::Delta" do
     
     it "should call indexer for the delta index" do
       Person.sphinx_indexes.first.delta_object.should_receive(:`).with(
-        "#{ThinkingSphinx::Configuration.instance.bin_path}indexer --config '#{ThinkingSphinx::Configuration.instance.config_file}' --rotate person_delta"
+        "#{ThinkingSphinx::Configuration.instance.bin_path}indexer --config \"#{ThinkingSphinx::Configuration.instance.config_file}\" --rotate person_delta"
       )
       
       @person.send(:index_delta)
