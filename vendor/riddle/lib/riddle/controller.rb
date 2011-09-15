@@ -22,6 +22,7 @@ module Riddle
       indexes << '--all' if indexes.empty?
       
       cmd = "#{indexer} --config \"#{@path}\" #{indexes.join(' ')}"
+      cmd << " --quiet" if options[:quiet]
       cmd << " --rotate" if running?
       options[:verbose] ? system(cmd) : `#{cmd}`
     end
